@@ -38,52 +38,62 @@ def get_interval():
         return 3
 
 
-def server(interface, port):
-    soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    soc.bind((interface, port))
-    print(f"Server binds with {soc.getsockname()}")
+class Server:
+    def __init__(self, interface, port):
+        self.interface = interface
+        self.port = port
 
-    while True:
-        data, address = soc.recvfrom(MAX_BYTES)
-        if random.random() < 0.5:
-            print(f"Pretending to drop packet from {address}")
-            continue
-        data = data.decode('ascii')
-        print(f"The client at {address} says {data}")
-        msg = "Welcome to Spotify. Enjoy music!"
+    def run(self):
+        soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        soc.bind((self.interface, self.port))
+        print(f"Server binds with {soc.getsockname()}")
+
+        while True:
+            data, address = soc.recvfrom(MAX_BYTES)
+            if random.random() < 0.5:
+                print(f"Pretending to drop packet from {address}")
+                continue
+            data = data.decode('ascii')
+            print(f"The client at {address} says {data}")
+            msg = "Welcome to Spotify. Enjoy music!"
+            msg = msg.encode('ascii')
+            soc.sendto(msg, address)
+
+
+class Client:
+    def __init__(self, hostname, port):
+        self.hostname = hostname
+        self.port = port
+
+    def run(self):
+        soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        hostname = sys.argv[2]
+        soc.connect((self.hostname, self.port))
+        print("Connected")
+
+        delay = 0.1
+        msg = "Hello Spotify. Thank you for enjoyable musics!"
         msg = msg.encode('ascii')
-        soc.sendto(msg, address)
-
-
-def client(hostname, port):
-    soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    hostname = sys.argv[2]
-    soc.connect((hostname, port))
-    print("Connected")
-
-    delay = 0.1
-    msg = "Hello Spotify. Thank you for enjoyable musics!"
-    msg = msg.encode('ascii')
-    time = Interval(get_interval())
-    while True:
-        soc.send(msg)
-        print(f"Waiting up to {delay} seconds for reply")
-        soc.settimeout(delay)
-        try:
-            data = soc.recv(MAX_BYTES)
-        except socket.timeout:
-            delay *= time.get_increase()
-            if delay > time.get_max_wait():
-                raise RuntimeError("Sorry, try again to connect Spotify")
-        else:
-            break
-    data = data.decode('ascii')
-    print(data)
+        time = Interval(get_interval())
+        while True:
+            soc.send(msg)
+            print(f"Waiting up to {delay} seconds for reply")
+            soc.settimeout(delay)
+            try:
+                data = soc.recv(MAX_BYTES)
+            except socket.timeout:
+                delay *= time.get_increase()
+                if delay > time.get_max_wait():
+                    raise RuntimeError("Sorry, try again to connect Spotify")
+            else:
+                break
+        data = data.decode('ascii')
+        print(data)
 
 
 def main():
 
-    choises = {'server': server, 'client': client}
+    choises = {'server': Server, 'client': Client}
     parser = argparse.ArgumentParser(description="Spotify server")
     parser.add_argument("role", choices=choises)
     parser.add_argument(
@@ -92,8 +102,8 @@ def main():
 
     args = parser.parse_args()
 
-    func = choises[args.role]
-    func(args.ip, args.p)
+    clss = choises[args.role](args.ip, args.p)
+    clss.run()
 
 
 if __name__ == '__main__':
